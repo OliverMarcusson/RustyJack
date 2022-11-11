@@ -1,5 +1,5 @@
 use rand::Rng;
-use std::time::Instant;
+use std::{time::Instant, cmp::Ordering};
 
 struct Deck {
     cards: Vec<Card>,
@@ -31,7 +31,7 @@ impl Deck {
 
     fn shuffle(&mut self, mut iterations: u32) {
         let mut rng = rand::thread_rng();
-        if iterations == 0 { iterations = 100; };
+        if iterations == 0 { iterations = 52; };
         
         for _ in 0..iterations {
             let index = rng.gen_range(0..self.cards.len());
@@ -191,12 +191,13 @@ struct Hand {
     card_names: Vec<String>,
     hand_value: u32,
     has_clothed: bool,
-    blackjack: bool
+    blackjack: bool,
+    surrender: bool
 }
 
 impl Hand {
     fn new() -> Hand {
-        let mut hand: Hand = Hand { cards: Vec::new(), card_names: Vec::new(), hand_value: 0, has_clothed: false, blackjack: false };
+        let mut hand: Hand = Hand { cards: Vec::new(), card_names: Vec::new(), hand_value: 0, has_clothed: false, blackjack: false, surrender: false};
         hand.evaluate();
         hand
     }
@@ -224,6 +225,53 @@ impl Hand {
     }
 }
 
+enum Result {
+    Win,
+    Loss,
+    Blackjack,
+    Push,
+    Surrender
+}
+
+impl Result {
+    fn to_string(&self) -> String {
+        match self {
+            Result::Win => String::from("win"),
+            Result::Loss => String::from("loss"),
+            Result::Blackjack => String::from("blackjack"),
+            Result::Surrender => String::from("surrender"),
+            Result::Push => String::from("push"),
+        }
+    }
+}
+
+fn compare(user: &User, dealer: &User) -> Result {
+    let user_hand_value = user.hand.hand_value;
+    let dealer_hand_value = dealer.hand.hand_value;
+    
+    if let true = user.hand.surrender {
+        return Result::Surrender;
+    }
+
+    if dealer_hand_value > 21 {
+        return Result::Win;
+    }
+
+    if user_hand_value > 21 {
+        return Result::Loss;
+    }
+
+    if user.hand.blackjack && !dealer.hand.blackjack {
+        return Result::Blackjack;
+    }
+
+    match user_hand_value.cmp(&dealer_hand_value) {
+        Ordering::Equal => Result::Push,
+        Ordering::Greater => Result::Win,
+        Ordering::Less => Result::Loss,
+    }
+}
+
 fn time_to_blackjack() {
     let mut user = User::new("User", 0, false);
     let mut shoe = Deck::new(1);
@@ -241,6 +289,19 @@ fn time_to_blackjack() {
     println!("Time elapsed: {:?}. Total iterations: {}", instant.elapsed(), &attempts);
 }
 
+fn test() -> String {
+    let mut shoe = Deck::new(1);
+    shoe.shuffle(0);
+    let mut user = User::new("test_user", 0, false);
+    let mut dealer = User::new("dealer", 0, true);
+    shoe.draw(Some(&mut user), 2);
+    shoe.draw(Some(&mut dealer), 2);
+    user.hand.print_information(Some(&user));
+    dealer.hand.print_information(Some(&dealer));
+    compare(&user, &dealer).to_string()
+    
+}
+
 fn main() {
-    time_to_blackjack();
+    println!("{}", test().as_str());
 }
