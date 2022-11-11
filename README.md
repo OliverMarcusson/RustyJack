@@ -5,4 +5,6 @@ A rewrite of my project 'JSBlackjack' in the:
 * ✅ Memory safe ✅, 
 * 🗑️🚫 NON garbage collecting 🚫🗑️,
 * 🔎 Borrow checking 🔎
+
 language Rust.
+(Not done yet still a WIP)
