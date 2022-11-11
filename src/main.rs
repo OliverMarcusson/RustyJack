@@ -1,62 +1,5 @@
-use std::io::{stdout, Write};
-
 use rand::Rng;
-
-// struct Users {
-//     users: Vec<User>
-// }
-
-struct User {
-    id: String,
-    tokens: u32,
-    hand: Hand,
-    is_dealer: bool
-}
-
-impl User {
-    fn new(name: &str, mut tokens: u32, is_dealer: bool) -> User {
-        if tokens == 0 { tokens = 1000 };
-        let user = User {id: String::from(name), tokens: tokens, hand: Hand::new(), is_dealer: is_dealer};
-        user
-    }
-
-    fn print_hand(&self) {
-        print!("{}'s hand: ", self.id);
-        for name in self.hand.card_names.iter() {
-            print!("{}, ", name);
-        }
-        print!("\n");
-        stdout().flush().expect("Failed to flush buffer.");
-    }
-}
-
-struct Hand {
-    cards: Vec<Card>,
-    card_names: Vec<String>,
-    hand_value: u32,
-    has_clothed: bool,
-    blackjack: bool
-}
-
-impl Hand {
-    fn new() -> Hand {
-        let hand: Hand = Hand { cards: Vec::new(), card_names: Vec::new(), hand_value: 0, has_clothed: false, blackjack: false };
-        hand
-    }
-
-    fn evaluate(&mut self) {
-        self.card_names.clear();
-        self.hand_value = 0;
-        self.blackjack = false;
-
-        for card in self.cards.iter() {
-            self.card_names.push(format!("{} of {}", card.value_name, card.suite_name));
-            self.hand_value += card.value;
-            if let true = card.clothed { self.has_clothed = true; }
-        }
-        if self.hand_value == 21 && self.has_clothed == true { self.blackjack = true; }
-    }
-}
+use std::time::Instant;
 
 struct Deck {
     cards: Vec<Card>,
@@ -107,10 +50,25 @@ impl Deck {
         }
     }
 
-    fn draw(&mut self, user: &mut User, amount: u32) {
-        for _ in 0..amount {
-            let card = self.cards.pop();
-            user.hand.cards.push(card.unwrap());
+    fn draw(&mut self, user: Option<&mut User>, amount: u32) -> Option<Vec<Card>> {
+        match user {
+            None => {
+                let mut vec: Vec<Card> = Vec::new();
+                for _ in 0..amount {
+                    let card = self.cards.pop();
+                    vec.push(card.unwrap());
+                }
+                Some(vec)
+            },
+            Some(ref _i) => {
+                let user = user.unwrap();
+                for _ in 0..amount {
+                    let card = self.cards.pop();
+                    user.hand.cards.push(card.unwrap());
+                }
+                user.hand.evaluate();
+                None
+            }
         }
     }
 
@@ -120,13 +78,16 @@ impl Deck {
             println!("Card: {} of {}.", i.value_name, i.suite_name);
         }
     }
-}
 
-enum Suite {
-    Hearts,
-    Spades,
-    Diamonds,
-    Clovers,
+    fn to_string(vec: &Vec<Card>) -> String {
+        let mut string = String::new();
+        for i in vec.iter() {
+            string.push_str(i.value_name.as_str());
+            string.push_str(", ");
+        }
+        string
+    }
+    
 }
 
 struct Card {
@@ -191,22 +152,95 @@ impl Card {
     }
 }
 
+enum Suite {
+    Hearts,
+    Spades,
+    Diamonds,
+    Clovers,
+}
+
+// struct Users {
+//     users: Vec<User>
+// }
+
+struct User {
+    id: String,
+    tokens: u32,
+    hand: Hand,
+    is_dealer: bool
+}
+
+impl User {
+    fn new(name: &str, mut tokens: u32, is_dealer: bool) -> User {
+        if tokens == 0 { tokens = 1000 };
+        let user = User {id: String::from(name), tokens: tokens, hand: Hand::new(), is_dealer: is_dealer};
+        user
+    }
+
+    fn return_hand(&self) -> String {
+        let mut hand = String::new();
+        for name in self.hand.card_names.iter() {
+            hand.push_str(format!("{}, ", name).as_str());
+        }
+        hand.to_string()
+    }
+}
+
+struct Hand {
+    cards: Vec<Card>,
+    card_names: Vec<String>,
+    hand_value: u32,
+    has_clothed: bool,
+    blackjack: bool
+}
+
+impl Hand {
+    fn new() -> Hand {
+        let mut hand: Hand = Hand { cards: Vec::new(), card_names: Vec::new(), hand_value: 0, has_clothed: false, blackjack: false };
+        hand.evaluate();
+        hand
+    }
+
+    fn evaluate(&mut self) {
+        self.card_names.clear();
+        self.hand_value = 0;
+        self.blackjack = false;
+
+        for card in self.cards.iter() {
+            self.card_names.push(format!("{} of {}", card.value_name, card.suite_name));
+            self.hand_value += card.value;
+            if let true = card.clothed { self.has_clothed = true; }
+        }
+        if self.hand_value == 21 && self.has_clothed == true { self.blackjack = true; }
+    }
+
+    fn print_information(&self, user: Option<&User>) {
+        if let Some(_i) = user {
+            let hand = user.unwrap().return_hand();
+            println!("{} Hand information:\nCards: {}\nValue: {}\nHas Clothed Card: {:?}\nHas Blackjack: {:?}", user.unwrap().id.as_str(), hand, self.hand_value, self.has_clothed, self.blackjack);
+        } else {
+            println!("Anonymous Hand information:\nValue: {}\nHas Clothed Card: {:?}\nHas Blackjack: {:?}", self.hand_value, self.has_clothed, self.blackjack);
+        }
+    }
+}
+
+fn time_to_blackjack() {
+    let mut user = User::new("User", 0, false);
+    let mut shoe = Deck::new(1);
+    let instant = Instant::now();
+    let mut attempts: u64 = 0;
+
+    while !user.hand.blackjack {
+        attempts += 1;
+        shoe = Deck::new(1);
+        shoe.shuffle(0);
+        user.hand = Hand::new();
+        shoe.draw(Some(&mut user), 2);
+    }
+    user.hand.print_information(Some(&user));
+    println!("Time elapsed: {:?}. Total iterations: {}", instant.elapsed(), &attempts);
+}
 
 fn main() {
-    let mut shoe = Deck::new(3);
-    shoe.shuffle(0);
-    shoe.print();
-    
-    let mut dealer = User::new("Dealer", 1000000, true);
-    let mut user = User::new("Oliver", 1000000, false);
-
-    shoe.draw(&mut dealer, 2);
-    shoe.draw(&mut user, 2);
-
-    dealer.hand.evaluate();
-    user.hand.evaluate();
-
-    dealer.print_hand();
-    user.print_hand();
-
+    time_to_blackjack();
 }
