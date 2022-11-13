@@ -1,12 +1,12 @@
 use rand::Rng;
-use std::{time::Instant, cmp::Ordering};
+use std::{time::Instant, cmp::Ordering, io::{stdin, stdout, Write}};
+mod benchmarking;
 
 struct Deck {
     cards: Vec<Card>,
     size: u8,
     cards_left: u32
 }
-
 impl Deck {
     fn new(size: u8) -> Deck {
         let mut cards: Vec<Card> = Vec::new();
@@ -98,7 +98,6 @@ struct Card {
     clothed: bool,
     color: bool,
 }
-
 impl Card {
     fn make(val: u32, suite: Suite) -> Card {
         let mut card: Card = Card { value: val, suite: suite, suite_name: String::new(), value_name: String::new(), clothed: false, color: false };
@@ -151,7 +150,6 @@ impl Card {
         return card;
     }
 }
-
 enum Suite {
     Hearts,
     Spades,
@@ -159,17 +157,12 @@ enum Suite {
     Clovers,
 }
 
-// struct Users {
-//     users: Vec<User>
-// }
-
 struct User {
     id: String,
     tokens: u32,
     hand: Hand,
     is_dealer: bool
 }
-
 impl User {
     fn new(name: &str, mut tokens: u32, is_dealer: bool) -> User {
         if tokens == 0 { tokens = 1000 };
@@ -184,6 +177,21 @@ impl User {
         }
         hand.to_string()
     }
+
+    fn init_players(gamemode: &Gamemode) -> Option<Vec<User>> {
+        match gamemode {
+            Gamemode::OfflineSingle => {
+                let mut users = Vec::new();
+                let mut user = String::new();
+                print!("Please input username: "); stdout().flush().unwrap();
+                stdin().read_line(&mut user).expect("Failed to read username");
+                users.push(User::new(&user, 0, false));
+                Some(users)
+            },
+            Gamemode::OfflineMulti => {None},
+            Gamemode::Online => {None}
+        }
+    }
 }
 
 struct Hand {
@@ -194,7 +202,6 @@ struct Hand {
     blackjack: bool,
     surrender: bool
 }
-
 impl Hand {
     fn new() -> Hand {
         let mut hand: Hand = Hand { cards: Vec::new(), card_names: Vec::new(), hand_value: 0, has_clothed: false, blackjack: false, surrender: false};
@@ -232,7 +239,6 @@ enum Result {
     Push,
     Surrender
 }
-
 impl Result {
     fn to_string(&self) -> String {
         match self {
@@ -243,65 +249,90 @@ impl Result {
             Result::Push => String::from("push"),
         }
     }
-}
 
-fn compare(user: &User, dealer: &User) -> Result {
-    let user_hand_value = user.hand.hand_value;
-    let dealer_hand_value = dealer.hand.hand_value;
+    fn compare(user: &User, dealer: &User) -> Result {
+        let user_hand_value = user.hand.hand_value;
+        let dealer_hand_value = dealer.hand.hand_value;
+        
+        if let true = user.hand.surrender {
+            return Result::Surrender;
+        }
     
-    if let true = user.hand.surrender {
-        return Result::Surrender;
-    }
-
-    if dealer_hand_value > 21 {
-        return Result::Win;
-    }
-
-    if user_hand_value > 21 {
-        return Result::Loss;
-    }
-
-    if user.hand.blackjack && !dealer.hand.blackjack {
-        return Result::Blackjack;
-    }
-
-    match user_hand_value.cmp(&dealer_hand_value) {
-        Ordering::Equal => Result::Push,
-        Ordering::Greater => Result::Win,
-        Ordering::Less => Result::Loss,
-    }
-}
-
-fn time_to_blackjack() {
-    let mut user = User::new("User", 0, false);
-    let mut shoe = Deck::new(1);
-    let instant = Instant::now();
-    let mut attempts: u64 = 0;
-
-    while !user.hand.blackjack {
-        attempts += 1;
-        shoe = Deck::new(1);
-        shoe.shuffle(0);
-        user.hand = Hand::new();
-        shoe.draw(Some(&mut user), 2);
-    }
-    user.hand.print_information(Some(&user));
-    println!("Time elapsed: {:?}. Total iterations: {}", instant.elapsed(), &attempts);
-}
-
-fn test() -> String {
-    let mut shoe = Deck::new(1);
-    shoe.shuffle(0);
-    let mut user = User::new("test_user", 0, false);
-    let mut dealer = User::new("dealer", 0, true);
-    shoe.draw(Some(&mut user), 2);
-    shoe.draw(Some(&mut dealer), 2);
-    user.hand.print_information(Some(&user));
-    dealer.hand.print_information(Some(&dealer));
-    compare(&user, &dealer).to_string()
+        if dealer_hand_value > 21 {
+            return Result::Win;
+        }
     
+        if user_hand_value > 21 {
+            return Result::Loss;
+        }
+    
+        if user.hand.blackjack && !dealer.hand.blackjack {
+            return Result::Blackjack;
+        }
+    
+        match user_hand_value.cmp(&dealer_hand_value) {
+            Ordering::Equal => Result::Push,
+            Ordering::Greater => Result::Win,
+            Ordering::Less => Result::Loss,
+        }
+    }
+}
+
+
+
+enum Gamemode {
+    OfflineSingle,
+    OfflineMulti,
+    Online,
+}
+impl Gamemode {
+    fn main(gamemode: Gamemode, users: &mut Vec<User>) {
+        
+    }
 }
 
 fn main() {
-    println!("{}", test().as_str());
+    'main_menu: loop {
+        let gamemode: Gamemode;
+        println!("Please select mode:\n1. Singleplayer\nb. Benchmark\nq. Exit");
+        
+        'choose_mode: loop {
+            print!(":"); stdout().flush().unwrap();
+            let mut choice = String::new();
+            stdin().read_line(&mut choice).expect("Failed to read line.");
+            let choice = choice.as_str().trim().to_string();
+            
+            match choice.as_str() {
+                "1" => {gamemode = Gamemode::OfflineSingle; break 'choose_mode;},
+                "b" => {benchmarking::choose_mode()}
+                "q" => break 'main_menu,
+                _ => println!("Input: \"{}\" is not valid. Please try again.\n", choice)
+            }
+        }
+
+        let mut users = User::init_players(&gamemode).unwrap();
+        Gamemode::main(gamemode, &mut users);
+    }
+    println!("Exiting.. .");
+    
 }
+
+    // let user: User = if let Gamemode::OfflineMulti = gamemode {} else {
+    //     print!("Please input username: "); stdout().flush().unwrap();
+    //     let mut user = String::new();
+    //     let user: String = stdin().read_line(&mut user).expect("Failed to read username").to_string();
+    //     let user: User = User::new(user.as_str(), 0, false);
+    //     return user;
+    // };
+
+    // let mut iterations = String::new();
+    // print!("Iterations: "); stdout().flush().unwrap();
+    // stdin().read_line(&mut iterations).expect("Failed to read line.");
+    
+    // let iterations = String::from(iterations.as_str().trim()).parse::<u64>().unwrap();
+    // let instant = Instant::now();
+    // let results = test(iterations, true);
+    // let winrate = (((results[0] as f64 + results[2] as f64) / (results[0] as f64 + results[1] as f64 + results[2] as f64)) * 100.0) as u64;
+
+    // println!("Wins: {}\nLosses: {}\nPushes: {}\nWinrate: {}%", results[0], results[1], results[2], winrate);
+    // println!("Time elapsed: {:?}", instant.elapsed());
