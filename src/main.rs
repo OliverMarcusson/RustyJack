@@ -1,5 +1,5 @@
 use rand::Rng;
-use std::{time::Instant, cmp::Ordering, io::{stdin, stdout, Write}};
+use std::{cmp::Ordering, io::{stdin, stdout, Write}};
 mod benchmarking;
 
 struct Deck {
